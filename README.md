@@ -2,6 +2,50 @@
 
 This repo aims to prove that something is wrong with APFS on macOS, but is also a good stress test in general when changing machine tooling that wants to oberve fs events (such as security tooling / EDR / virus scanners / etc).
 
+## Summary
+
+This repo is measuring one specific pain point: lots of small-file filesystem churn from git clean and pnpm install, not “overall computer speed.” The README explicitly frames it as APFS/macOS stress testing and filesystem watcher/security tooling sensitivity, and the benchmark is just git clean -Xfd; git clean -fd plus cached pnpm install timing.
+
+Summary of results submitted by users as of 2026-07-04:
+```
+ Platform                    Result in this benchmark    My take
+━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Ubuntu/Linux                        Fastest by a lot    Best choice for JS/package-manager-heavy dev workloads, especially native ext4/btrfs.
+───────────────────  ─────────────────────────────────  ─────────────────────────────────────────────────────────────────────────────────────────────────
+ macOS/APFS                       Usually much slower    Great UX/hardware, but APFS seems poor at this particular small-file/delete/install workload.
+───────────────────  ─────────────────────────────────  ─────────────────────────────────────────────────────────────────────────────────────────────────
+ Windows 11 native                        Often worst    NTFS/ReFS plus Defender/security scanning can be brutal for node_modules-style workloads.
+───────────────────  ─────────────────────────────────  ─────────────────────────────────────────────────────────────────────────────────────────────────
+ Windows 11 + WSL2    Much better than native Windows    Probably the sane Windows setup for Node/dev work if files live inside the WSL ext4 filesystem.
+```
+
+Medians:
+```
+ Group                              Clean median    Install median
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━
+ Linux native/VM rows                      ~3.3s            ~13.9s
+─────────────────────────────────  ──────────────  ────────────────
+ “Cleaner” native-ish Linux rows           ~6.4s            ~12.2s
+─────────────────────────────────  ──────────────  ────────────────
+ macOS rows                               ~39.6s            ~44.4s
+─────────────────────────────────  ──────────────  ────────────────
+ “Cleaner” macOS rows                     ~42.2s            ~44.6s
+─────────────────────────────────  ──────────────  ────────────────
+ Windows 11 native rows                   ~88.4s            ~96.7s
+─────────────────────────────────  ──────────────  ────────────────
+ WSL2 Linux rows                          ~13.4s            ~16.4s
+```
+
+The clearest apples-to-apples-ish datapoint is the Apple M5 Pro row: macOS APFS was around 30-32s clean and 34-35s install, while Ubuntu in OrbStack on the same machine/storage was 2.9s clean and 14.6s install.
+That’s a huge gap, especially for deletion/cleanup.
+
+## Best options to workaround this issue if on windows/macOS:
+- If your work is mostly JS/TS, monorepos, pnpm/npm/yarn, Git churn, Docker, CI-like tasks: Ubuntu is likely fastest.
+- If you want macOS for hardware, apps, iOS dev, ecosystem: it’s fine, but expect this class of filesystem work to be slower. A Linux VM/OrbStack native filesystem can help.
+- If you want Windows 11: do serious dev work inside WSL2, and keep repos under the Linux filesystem, not /mnt/c/....
+- I would not choose native Windows filesystem performance for Node-heavy repos unless there’s a strong reason.
+
+Bottom line: for raw dev-loop speed on this benchmark, Ubuntu/Linux wins clearly; macOS is workable but surprisingly slow; native Windows 11 looks rough; WSL2 is the practical Windows answer.
 
 ## The Test
 
